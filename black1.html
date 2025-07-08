@@ -26,11 +26,7 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     html, body { height: 100%; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#fafafa; color:#333; overflow: hidden; }
-    button { cursor:pointer; }
-    .main-screen {
-      display:flex; flex-direction:column; justify-content:center; align-items:center;
-      height:100vh; text-align:center; padding: 20px;
-    }
+    .main-screen { display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; text-align:center; padding: 20px; }
     .main-title { font-size:48px; font-weight:600; margin-bottom:10px; }
     .main-subtitle { font-size:16px; color:#666; margin-bottom:50px; }
     .start-button { padding:16px 40px; font-size:18px; background:#333; color:#fff; border:none; border-radius:4px; }
@@ -61,7 +57,13 @@
     .note-editor, .note-frame, .note-editing-area, .note-editable { height: 100% !important; }
     .note-editable { overflow-y: auto !important; }
     
-    .calendar-view { display:none; flex:1; padding:20px; overflow-y: auto; }
+    .calendar-view { 
+      display: none; 
+      flex-direction: column; /* 자식 요소들을 세로로 정렬 */
+      flex: 1; 
+      padding: 20px; 
+      overflow-y: auto; 
+    }
     .calendar-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
     .calendar-nav button { padding:6px 12px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px; }
     .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:#ddd; }
@@ -171,7 +173,6 @@
       }
     }
     
-    // --- 노트 관리 함수들 (이전과 동일) ---
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('visible'); }
     function backToMain() { document.getElementById('mainScreen').style.display = 'flex'; document.getElementById('editorScreen').style.display = 'none'; }
     function formatDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -183,93 +184,19 @@
     function loadNotes() { const list = document.getElementById('notesList'); list.innerHTML = ''; notes.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt)); notes.forEach(n => { const d = document.createElement('div'); d.className = 'menu-item'; d.dataset.noteId = n.id; const titleSpan = document.createElement('span'); titleSpan.textContent = n.title; d.appendChild(titleSpan); const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '&times;'; deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNote(n.id); }; d.appendChild(deleteBtn); d.onclick = () => selectNote(n.id); list.appendChild(d); }); highlightActive(); }
     function deleteNote(id) { if(!confirm('삭제하시겠습니까?')) return; notes = notes.filter(x => x.id !== id); saveNotes(); if (currentNoteId === id) { currentNoteId = null; localStorage.removeItem('lastActiveNote_black'); document.getElementById('noteTitle').value = ''; if(isEditorInitialized) $('#editor').summernote('reset'); } loadNotes(); if (notes.length > 0 && !currentNoteId) { selectNote(notes[0].id); } else if (notes.length === 0) { createNewNote(); } if (document.getElementById('calendarView').style.display === 'block') { renderCalendar(); } }
     function exportToPDF() { if (!currentNoteId) return alert('노트를 선택하세요.'); const note = notes.find(x => x.id === currentNoteId); const tempDiv = document.createElement('div'); tempDiv.innerHTML = note.content; const textContent = tempDiv.innerText || " "; const { jsPDF } = window.jspdf; const doc = new jsPDF(); doc.addFileToVFS('NanumGothic.ttf', nanumGothic); doc.addFont('NanumGothic.ttf', 'NanumGothic', 'normal'); doc.setFont('NanumGothic'); doc.setFontSize(16); doc.text(note.title, 20, 20); doc.setFontSize(12); const lines = doc.splitTextToSize(textContent, 170); let y = 30; lines.forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 20, y); y += 7; }); doc.save(`${note.title}.pdf`); }
-
-    // --- ▼▼▼ 캘린더 관련 함수 (수정됨) ▼▼▼ ---
-    function renderCalendar() {
-        const calendarGrid = document.getElementById('calendarGrid');
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        
-        document.getElementById('calendarMonth').textContent = `${year}년 ${month + 1}월`;
-        calendarGrid.innerHTML = '';
-        
-        ['일', '월', '화', '수', '목', '금', '토'].forEach(day => {
-            const header = document.createElement('div');
-            header.className = 'calendar-day-header';
-            header.textContent = day;
-            calendarGrid.appendChild(header);
-        });
-
-        const firstDate = new Date(year, month, 1);
-        const startDate = new Date(firstDate);
-        startDate.setDate(startDate.getDate() - firstDate.getDay());
-
-        for (let i = 0; i < 42; i++) {
-            const cellDate = new Date(startDate);
-            cellDate.setDate(startDate.getDate() + i);
-            appendDay(cellDate, cellDate.getMonth() !== month);
-        }
-    }
-
-    function appendDay(date, isOtherMonth) {
-        const dayCell = document.createElement('div');
-        dayCell.className = 'calendar-day';
-        if (isOtherMonth) {
-            dayCell.classList.add('other-month');
-        }
-
-        const dayNumber = document.createElement('div');
-        dayNumber.className = 'calendar-day-number';
-        dayNumber.textContent = date.getDate();
-        dayCell.appendChild(dayNumber);
-
-        if (!isOtherMonth) {
-            const dateString = formatDate(date);
-            const notesOnDate = notes.filter(n => 
-                formatDate(new Date(n.updatedAt)) === dateString && 
-                n.content.replace(/<[^>]*>/g, '').trim().length > 0
-            );
-            
-            if (notesOnDate.length > 0) {
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'calendar-day-content';
-                contentDiv.textContent = `${notesOnDate.length}개`;
-                dayCell.appendChild(contentDiv);
-            }
-
-            const today = new Date();
-            if (date.toDateString() === today.toDateString()) {
-                dayCell.classList.add('today');
-            }
-            dayCell.onclick = () => onDateClick(dateString);
-        }
-        document.getElementById('calendarGrid').appendChild(dayCell);
-    }
-
-    function changeMonth(dir) {
-        if (dir === 0) {
-            currentMonth = new Date();
-        } else {
-            currentMonth.setMonth(currentMonth.getMonth() + dir, 1);
-        }
-        renderCalendar();
-    }
-
-    function onDateClick(dateKey) {
-        const existingNote = notes.find(n => formatDate(new Date(n.updatedAt)) === dateKey);
-        if (existingNote) {
-            selectNote(existingNote.id);
-        } else {
-            createNewNote(dateKey);
-        }
-        toggleView('editor');
-    }
-
+    function renderCalendar() { const calendarGrid = document.getElementById('calendarGrid'); if (!calendarGrid) return; const year = currentMonth.getFullYear(); const month = currentMonth.getMonth(); document.getElementById('calendarMonth').textContent = `${year}년 ${month + 1}월`; calendarGrid.innerHTML = ''; ['일', '월', '화', '수', '목', '금', '토'].forEach(day => { const header = document.createElement('div'); header.className = 'calendar-day-header'; header.textContent = day; calendarGrid.appendChild(header); }); const firstDate = new Date(year, month, 1); const startDate = new Date(firstDate); startDate.setDate(startDate.getDate() - firstDate.getDay()); for (let i = 0; i < 42; i++) { const cellDate = new Date(startDate); cellDate.setDate(startDate.getDate() + i); appendDay(cellDate, cellDate.getMonth() !== month); } }
+    function appendDay(date, isOtherMonth) { const dayCell = document.createElement('div'); dayCell.className = 'calendar-day'; if (isOtherMonth) { dayCell.classList.add('other-month'); } const dayNumber = document.createElement('div'); dayNumber.className = 'calendar-day-number'; dayNumber.textContent = date.getDate(); dayCell.appendChild(dayNumber); if (!isOtherMonth) { const dateString = formatDate(date); const notesOnDate = notes.filter(n => formatDate(new Date(n.updatedAt)) === dateString && n.content.replace(/<[^>]*>/g, '').trim().length > 0); if (notesOnDate.length > 0) { const contentDiv = document.createElement('div'); contentDiv.className = 'calendar-day-content'; contentDiv.textContent = `${notesOnDate.length}개`; dayCell.appendChild(contentDiv); } const today = new Date(); if (date.toDateString() === today.toDateString()) { dayCell.classList.add('today'); } dayCell.onclick = () => onDateClick(dateString); } document.getElementById('calendarGrid').appendChild(dayCell); }
+    function changeMonth(dir) { if (dir === 0) { currentMonth = new Date(); } else { currentMonth.setMonth(currentMonth.getMonth() + dir, 1); } renderCalendar(); }
+    function onDateClick(dateKey) { const existingNote = notes.find(n => formatDate(new Date(n.updatedAt)) === dateKey); if (existingNote) { selectNote(existingNote.id); } else { createNewNote(dateKey); } toggleView('editor'); }
+    
+    // --- ▼▼▼ 해결 방안을 적용한 함수 ▼▼▼ ---
     function toggleView(view) {
         document.getElementById('editorView').style.display = view === 'editor' ? 'flex' : 'none';
-        document.getElementById('calendarView').style.display = view === 'calendar' ? 'block' : 'none';
+        document.getElementById('calendarView').style.display = view === 'calendar' ? 'flex' : 'none'; // 'block'에서 'flex'로 변경
+        
         document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
         document.querySelector(`.toggle-btn[onclick*="${view}"]`).classList.add('active');
+        
         if (view === 'calendar') {
             renderCalendar();
         }
