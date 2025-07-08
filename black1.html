@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>모두의 기록.black</title>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height: 100%; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#fafafa; color:#333; overflow: hidden; }
+    button { cursor:pointer; }
+    .main-screen {
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      height:100vh; text-align:center; padding: 20px;
+    }
+    .main-title { font-size:48px; font-weight:600; margin-bottom:10px; }
+    .main-subtitle { font-size:16px; color:#666; margin-bottom:50px; }
+    .start-button { padding:16px 40px; font-size:18px; background:#333; color:#fff; border:none; border-radius:4px; }
+    .editor-screen { display:none; height:100vh; }
+    .container { display:flex; height:100%; width:100%; }
+    .sidebar { width:250px; background:#f5f5f5; border-right:1px solid #e0e0e0; display:flex; flex-direction:column; transition: transform 0.3s ease-in-out; flex-shrink: 0; }
+    .sidebar-header { padding:20px; border-bottom:1px solid #e0e0e0; }
+    .sidebar-title { font-size:18px; font-weight:500; }
+    .sidebar-subtitle { font-size:12px; color:#666; margin-top:5px; }
+    .new-note-btn { margin:10px; padding:10px; background:#333; color:#fff; border:none; border-radius:4px; }
+    .sidebar-menu { flex:1; overflow-y:auto; }
+    .menu-item { display:flex; justify-content:space-between; align-items:center; padding:12px 20px; border-bottom:1px solid #eee; cursor:pointer; }
+    .menu-item.active { background:#fff; font-weight:500; }
+    .menu-item button { background:none; border:none; color:#333; font-size:16px; }
+    .sidebar-footer { padding:10px; border-top:1px solid #e0e0e0; display:flex; flex-direction:column; gap:5px; }
+    .sidebar-footer button { padding:8px; background:#666; color:#fff; border:none; border-radius:4px; }
+    .main-content-area { flex:1; display:flex; flex-direction:column; overflow: hidden; }
+    .content-header { display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #e0e0e0; flex-shrink: 0; background: #fff; }
+    .hamburger-btn { display: none; font-size: 24px; background: none; border: none; padding: 5px; }
+    #noteTitle { border:none; font-size:20px; font-weight:500; flex: 1; background:none; margin: 0 10px; }
+    .view-toggle { display:flex; gap:10px; }
+    .toggle-btn { padding:6px 12px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px; }
+    .toggle-btn.active { background:#333; color:#fff; border-color:#333; }
+    
+    #editorView.editor-container { flex:1; padding: 0; display: flex; }
+    #editor { /* JavaScript로 에디터가 생성될 자리 */ }
+    
+    .calendar-view { display:none; flex:1; padding:20px; overflow-y: auto; }
+    #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
+    
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed; top: 0; left: 0; height: 100%;
+        z-index: 100; transform: translateX(-100%); border-right: 2px solid #ddd;
+      }
+      .sidebar.visible { transform: translateX(0); }
+      .sidebar.visible ~ #overlay { display: block; }
+      .hamburger-btn { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div id="mainScreen" class="main-screen">
+    <div>
+      <h1 class="main-title">모두의 기록.black</h1>
+      <p class="main-subtitle">K.Chul</p>
+      <button class="start-button" onclick="startWriting()">작성하기</button>
+    </div>
+  </div>
+  <div id="editorScreen" class="editor-screen">
+    <div class="container">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">모두의 기록.black</div>
+          <div class="sidebar-subtitle">K.Chul</div>
+        </div>
+        <button class="new-note-btn" onclick="createNewNote()">새 노트</button>
+        <div id="notesList" class="sidebar-menu"></div>
+        <div class="sidebar-footer">
+          <button onclick="exportToPDF()">PDF 저장</button>
+          <button onclick="backToMain()">메인으로</button>
+        </div>
+      </aside>
+      <div id="overlay" onclick="toggleSidebar()"></div>
+      <main class="main-content-area">
+        <div class="content-header">
+          <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+          <input type="text" id="noteTitle" placeholder="제목 없음">
+          <div class="view-toggle">
+            <button class="toggle-btn active" onclick="toggleView('editor')">에디터</button>
+            <button class="toggle-btn" onclick="toggleView('calendar')">캘린더</button>
+          </div>
+        </div>
+        <div id="editorView" class="editor-container">
+          <div id="editor"></div>
+        </div>
+        <div id="calendarView" class="calendar-view">
+          </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const nanumGothic = 'AAEAAAARAQAABAAQRFNJRwAAAAAAA...'; // PDF 한글 폰트 데이터 (생략)
+    let isEditorInitialized = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadNotes();
+      document.getElementById('noteTitle').addEventListener('input', saveCurrentNote);
+    });
+
+    function startWriting() { 
+      document.getElementById('mainScreen').style.display = 'none'; 
+      document.getElementById('editorScreen').style.display = 'block'; 
+      
+      if (!isEditorInitialized) {
+        // 에디터가 속한 컨테이너의 실제 높이를 계산
+        const editorHeight = $('#editorView').height();
+        
+        $('#editor').summernote({
+          placeholder: '여기에 내용을 입력하세요...',
+          tabsize: 2,
+          height: editorHeight, // 계산된 높이로 설정
+          focus: true,
+          callbacks: {
+            onChange: function(contents, $editable) {
+              saveCurrentNote();
+            }
+          }
+        });
+        isEditorInitialized = true;
+
+        if (!notes.length) {
+          createNewNote();
+        } else if (currentNoteId) {
+          selectNote(currentNoteId);
+        } else {
+          selectNote(notes[0].id);
+        }
+      }
+    }
+
+    // --- 나머지 JavaScript 함수들은 이전과 동일합니다 ---
+
+    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('visible'); }
+    function backToMain() { document.getElementById('mainScreen').style.display = 'flex'; document.getElementById('editorScreen').style.display = 'none'; }
+    
+    let notes = JSON.parse(localStorage.getItem('documentNotes_black')) || [];
+    let currentNoteId = localStorage.getItem('lastActiveNote_black') ? parseInt(localStorage.getItem('lastActiveNote_black')) : null;
+    let currentMonth = new Date();
+
+    function formatDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+    
+    function createNewNote(dateKey) {
+        const date = dateKey ? new Date(dateKey+'T00:00:00') : new Date();
+        const iso = date.toISOString();
+        const note = { id:Date.now(), title:formatDate(date), content:'<p><br></p>', createdAt:iso, updatedAt:iso };
+        notes.unshift(note);
+        saveNotes();
+        loadNotes();
+        selectNote(note.id);
+    }    
+    
+    function selectNote(id) {
+        currentNoteId = id;
+        localStorage.setItem('lastActiveNote_black', id);
+        const note = notes.find(x => x.id === id);
+        if(!note) {
+          if (notes.length > 0) selectNote(notes[0].id); // 노트가 없으면 첫번째 노트를 선택
+          return;
+        };
+        document.getElementById('noteTitle').value = note.title;
+        if(isEditorInitialized) {
+            $('#editor').summernote('code', note.content);
+        }
+        highlightActive();
+        if (window.innerWidth <= 768 && document.querySelector('.sidebar').classList.contains('visible')) {
+          toggleSidebar();
+        }
+    }    
+    
+    function highlightActive() {
+        document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+        if (currentNoteId) {
+            const activeEl = document.querySelector(`.menu-item[data-note-id="${currentNoteId}"]`);
+            if (activeEl) activeEl.classList.add('active');
+        }
+    }    
+    
+    function saveCurrentNote() {
+        if(!currentNoteId || !isEditorInitialized) return;
+        const note = notes.find(x => x.id === currentNoteId);
+        if (!note) return;
+        
+        note.title = document.getElementById('noteTitle').value || formatDate(new Date());
+        note.content = $('#editor').summernote('code');
+        note.updatedAt = new Date().toISOString();
+        
+        saveNotes();
+        
+        const activeItem = document.querySelector(`.menu-item[data-note-id="${currentNoteId}"] span`);
+        if(activeItem && activeItem.textContent !== note.title) {
+            loadNotes();
+        }
+    }
+    
+    function saveNotes() { localStorage.setItem('documentNotes_black', JSON.stringify(notes)); }    
+    
+    function loadNotes() {
+        const list = document.getElementById('notesList');
+        list.innerHTML = '';
+        notes.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        notes.forEach(n => {
+            const d = document.createElement('div');
+            d.className = 'menu-item';
+            d.dataset.noteId = n.id;
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = n.title;
+            d.appendChild(titleSpan);
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '&times;';
+            deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNote(n.id); };
+            d.appendChild(deleteBtn);
+d.onclick = () => selectNote(n.id);
+            list.appendChild(d);
+        });
+        highlightActive();
+    }
+    
+    function deleteNote(id) {
+        if(!confirm('삭제하시겠습니까?')) return;
+        notes = notes.filter(x => x.id !== id);
+        saveNotes();
+        
+        if (currentNoteId === id) {
+            currentNoteId = null;
+            localStorage.removeItem('lastActiveNote_black');
+            document.getElementById('noteTitle').value = '';
+            if(isEditorInitialized) $('#editor').summernote('reset');
+        }
+        
+        loadNotes();
+        
+        if(notes.length > 0 && !currentNoteId) {
+            selectNote(notes[0].id);
+        } else if (notes.length === 0) {
+            createNewNote();
+        }
+        
+        if (document.getElementById('calendarView').style.display === 'block') {
+            renderCalendar();
+        }
+    }
+    
+    function exportToPDF() {
+        if (!currentNoteId) return alert('노트를 선택하세요.');
+        const note = notes.find(x => x.id === currentNoteId);
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.content;
+        const textContent = tempDiv.innerText || " ";
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        doc.addFileToVFS('NanumGothic.ttf', nanumGothic);
+        doc.addFont('NanumGothic.ttf', 'NanumGothic', 'normal');
+        doc.setFont('NanumGothic');
+        
+        doc.setFontSize(16);
+        doc.text(note.title, 20, 20);
+        
+        doc.setFontSize(12);
+        const lines = doc.splitTextToSize(textContent, 170);
+        let y = 30;
+        lines.forEach(line => {
+            if (y > 280) {
+                doc.addPage();
+                y = 20;
+            }
+            doc.text(line, 20, y);
+            y += 7;
+        });
+
+        doc.save(`${note.title}.pdf`);
+    }
+
+    function renderCalendar() {
+        const calendarGrid = document.getElementById('calendarGrid');
+        if (!calendarGrid) return;
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        document.getElementById('calendarMonth').textContent = `${year}년 ${month + 1}월`;
+        calendarGrid.innerHTML = '';
+        ['일', '월', '화', '수', '목', '금', '토'].forEach(day => {
+            const header = document.createElement('div');
+            header.className = 'calendar-day-header';
+            header.textContent = day;
+            calendarGrid.appendChild(header);
+        });
+        const firstDay = new Date(year, month, 1).getDay();
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        const prevLastDate = new Date(year, month, 0).getDate();
+        for (let i = firstDay; i > 0; i--) {
+            appendDay(prevLastDate - i + 1, true, null);
+        }
+        for (let i = 1; i <= lastDate; i++) {
+            appendDay(i, false, new Date(year, month, i));
+        }
+        const remainingCells = 42 - (firstDay + lastDate);
+        for (let i = 1; i <= remainingCells; i++) {
+            appendDay(i, true, null);
+        }
+    }
+
+    function appendDay(date, isOtherMonth, fullDate) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        if (isOtherMonth) dayCell.classList.add('other-month');
+        
+        const dayNumber = document.createElement('div');
+        dayNumber.className = 'calendar-day-number';
+        dayNumber.textContent = date;
+        dayCell.appendChild(dayNumber);
+
+        if (!isOtherMonth && fullDate) {
+            const dateString = fullDate.toISOString().split('T')[0];
+            const notesOnDate = notes.filter(n => n.updatedAt.startsWith(dateString) && n.content.replace(/<[^>]*>/g, '').trim().length > 0);
+            if (notesOnDate.length > 0) {
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'calendar-day-content';
+                contentDiv.textContent = `${notesOnDate.length}개`;
+                dayCell.appendChild(contentDiv);
+            }
+            const today = new Date();
+            if (fullDate.toDateString() === today.toDateString()) {
+                dayCell.classList.add('today');
+            }
+            dayCell.onclick = () => onDateClick(dateString);
+        }
+        document.getElementById('calendarGrid').appendChild(dayCell);
+    }
+
+    function changeMonth(dir) {
+        if (dir === 0) { currentMonth = new Date(); } 
+        else { currentMonth.setMonth(currentMonth.getMonth() + dir, 1); }
+        renderCalendar();
+    }
+
+    function onDateClick(dateKey) {
+        const existingNote = notes.find(n => n.updatedAt.startsWith(dateKey));
+        if (existingNote) {
+            selectNote(existingNote.id);
+        } else {
+            createNewNote(dateKey);
+        }
+        toggleView('editor');
+    }
+
+    function toggleView(view) {
+        document.getElementById('editorView').style.display = view === 'editor' ? 'flex' : 'none';
+        document.getElementById('calendarView').style.display = view === 'calendar' ? 'block' : 'none';
+        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.toggle-btn[onclick*="${view}"]`).classList.add('active');
+        if (view === 'calendar') {
+            renderCalendar();
+        }
+    }
+  </script>
+</body>
+</html>
