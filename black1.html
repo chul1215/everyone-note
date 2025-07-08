@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>모두의 기록.black</title>
 
+  <meta property="og:title" content="모두의 기록.black">
+  <meta property="og:description" content="Summernote 기반의 새로운 문서 기록장입니다.">
+  <meta property="og:image" content="https://chul1215.github.io/everyone-note/thumbnail2.png">
+  <meta property="og:url" content="https://chul1215.github.io/everyone-note/black1.html">
+  <meta property="og:type" content="website">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="모두의 기록.black">
+  <link rel="apple-touch-icon" href="icon-192x192.png">
+
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -48,8 +58,12 @@
     .toggle-btn.active { background:#333; color:#fff; border-color:#333; }
     
     #editorView.editor-container { flex:1; padding: 0; display: flex; }
-    #editor { /* JavaScript로 에디터가 생성될 자리 */ }
     
+    .note-editor.note-frame { display: flex; flex-direction: column; height: 100%; border: none; }
+    .note-editing-area { flex: 1; overflow: hidden; }
+    .note-editable { height: 100% !important; overflow-y: auto !important; padding: 15px; }
+    .note-statusbar { display: none; }
+
     .calendar-view { display:none; flex:1; padding:20px; overflow-y: auto; }
     #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
     
@@ -106,7 +120,7 @@
   </div>
 
   <script>
-    const nanumGothic = 'AAEAAAARAQAABAAQRFNJRwAAAAAAA...'; // PDF 한글 폰트 데이터 (생략)
+    const nanumGothic = 'AAEAAAARAQAABAAQRFNJRwAAAAAAA...'; 
     let isEditorInitialized = false;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -119,13 +133,12 @@
       document.getElementById('editorScreen').style.display = 'block'; 
       
       if (!isEditorInitialized) {
-        // 에디터가 속한 컨테이너의 실제 높이를 계산
         const editorHeight = $('#editorView').height();
         
         $('#editor').summernote({
           placeholder: '여기에 내용을 입력하세요...',
           tabsize: 2,
-          height: editorHeight, // 계산된 높이로 설정
+          height: editorHeight,
           focus: true,
           callbacks: {
             onChange: function(contents, $editable) {
@@ -144,8 +157,6 @@
         }
       }
     }
-
-    // --- 나머지 JavaScript 함수들은 이전과 동일합니다 ---
 
     function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('visible'); }
     function backToMain() { document.getElementById('mainScreen').style.display = 'flex'; document.getElementById('editorScreen').style.display = 'none'; }
@@ -171,7 +182,7 @@
         localStorage.setItem('lastActiveNote_black', id);
         const note = notes.find(x => x.id === id);
         if(!note) {
-          if (notes.length > 0) selectNote(notes[0].id); // 노트가 없으면 첫번째 노트를 선택
+          if (notes.length > 0) selectNote(notes[0].id);
           return;
         };
         document.getElementById('noteTitle').value = note.title;
@@ -226,7 +237,7 @@
             deleteBtn.innerHTML = '&times;';
             deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNote(n.id); };
             d.appendChild(deleteBtn);
-d.onclick = () => selectNote(n.id);
+            d.onclick = () => selectNote(n.id);
             list.appendChild(d);
         });
         highlightActive();
