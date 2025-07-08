@@ -18,10 +18,8 @@
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
   <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
-  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
   <style>
@@ -49,29 +47,34 @@
     .menu-item button { background:none; border:none; color:#333; font-size:16px; }
     .sidebar-footer { padding:10px; border-top:1px solid #e0e0e0; display:flex; flex-direction:column; gap:5px; }
     .sidebar-footer button { padding:8px; background:#666; color:#fff; border:none; border-radius:4px; }
-    .main-content-area { flex:1; display:flex; flex-direction:column; overflow: hidden; }
-    .content-header { display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #e0e0e0; flex-shrink: 0; background: #fff; }
+    
+    .main-content-area { flex:1; display:flex; flex-direction:column; }
+    .content-header { display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #e0e0e0; flex-shrink: 0; background: #fff; height: 61px; }
     .hamburger-btn { display: none; font-size: 24px; background: none; border: none; padding: 5px; }
     #noteTitle { border:none; font-size:20px; font-weight:500; flex: 1; background:none; margin: 0 10px; }
     .view-toggle { display:flex; gap:10px; }
     .toggle-btn { padding:6px 12px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px; }
     .toggle-btn.active { background:#333; color:#fff; border-color:#333; }
     
-    #editorView.editor-container { flex:1; padding: 0; display: flex; }
+    #editorView { height: calc(100% - 61px); }
+    #editor { height: 100%; }
+    .note-editor, .note-frame, .note-editing-area, .note-editable { height: 100% !important; }
+    .note-editable { overflow-y: auto !important; }
     
-    .note-editor.note-frame { display: flex; flex-direction: column; height: 100%; border: none; }
-    .note-editing-area { flex: 1; overflow: hidden; }
-    .note-editable { height: 100% !important; overflow-y: auto !important; padding: 15px; }
-    .note-statusbar { display: none; }
-
     .calendar-view { display:none; flex:1; padding:20px; overflow-y: auto; }
+    .calendar-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+    .calendar-nav button { padding:6px 12px; background:#f5f5f5; border:1px solid #ddd; border-radius:4px; }
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:#ddd; }
+    .calendar-day-header { background:#f5f5f5; padding:10px; text-align:center; font-weight:500; }
+    .calendar-day { background:#fff; min-height:100px; padding:8px; position:relative; cursor:pointer; }
+    .calendar-day.other-month { background:#fafafa; color:#ccc; cursor:default; }
+    .calendar-day.today { background:#e0f7fa; }
+    .calendar-day-number { font-weight:500; }
+    .calendar-day-content { position:absolute; bottom:4px; right:4px; font-size:12px; color:#666; }
     #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 99; }
     
     @media (max-width: 768px) {
-      .sidebar {
-        position: fixed; top: 0; left: 0; height: 100%;
-        z-index: 100; transform: translateX(-100%); border-right: 2px solid #ddd;
-      }
+      .sidebar { position: fixed; top: 0; left: 0; height: 100%; z-index: 100; transform: translateX(-100%); border-right: 2px solid #ddd; }
       .sidebar.visible { transform: translateX(0); }
       .sidebar.visible ~ #overlay { display: block; }
       .hamburger-btn { display: block; }
@@ -114,6 +117,15 @@
           <div id="editor"></div>
         </div>
         <div id="calendarView" class="calendar-view">
+          <div class="calendar-header">
+            <h2 id="calendarMonth"></h2>
+            <div class="calendar-nav">
+              <button onclick="changeMonth(-1)">이전</button>
+              <button onclick="changeMonth(0)">오늘</button>
+              <button onclick="changeMonth(1)">다음</button>
+            </div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
           </div>
       </main>
     </div>
@@ -122,8 +134,19 @@
   <script>
     const nanumGothic = 'AAEAAAARAQAABAAQRFNJRwAAAAAAA...'; 
     let isEditorInitialized = false;
+    let notes = JSON.parse(localStorage.getItem('documentNotes_black')) || [];
+    let currentNoteId = localStorage.getItem('lastActiveNote_black') ? parseInt(localStorage.getItem('lastActiveNote_black')) : null;
+    let currentMonth = new Date();
 
     document.addEventListener('DOMContentLoaded', () => {
+      $('#editor').summernote({
+          placeholder: '여기에 내용을 입력하세요...',
+          tabsize: 2,
+          focus: true,
+          height: $('#editorView').height() // 초기 높이 설정
+      });
+      $('#editor').summernote('disable');
+      
       loadNotes();
       document.getElementById('noteTitle').addEventListener('input', saveCurrentNote);
     });
@@ -133,49 +156,20 @@
       document.getElementById('editorScreen').style.display = 'block'; 
       
       if (!isEditorInitialized) {
-        const editorHeight = $('#editorView').height();
-        
-        $('#editor').summernote({
-          placeholder: '여기에 내용을 입력하세요...',
-          tabsize: 2,
-          height: editorHeight,
-          focus: true,
-          callbacks: {
-            onChange: function(contents, $editable) {
-              saveCurrentNote();
-            }
-          }
-        });
+        $('#editor').summernote('enable');
+        // 에디터 활성화 후, 높이를 다시 설정해줄 수 있습니다.
+        $('.note-editable').css('height', $('#editorView').height() - 50); 
         isEditorInitialized = true;
-
-        if (!notes.length) {
-          createNewNote();
-        } else if (currentNoteId) {
-          selectNote(currentNoteId);
-        } else {
-          selectNote(notes[0].id);
-        }
+      }
+      
+      if (!notes.length) {
+        createNewNote();
+      } else if (currentNoteId && notes.find(n => n.id === currentNoteId)) {
+        selectNote(currentNoteId);
+      } else {
+        selectNote(notes[0].id);
       }
     }
-
-    function toggleSidebar() { document.querySelector('.sidebar').classList.toggle('visible'); }
-    function backToMain() { document.getElementById('mainScreen').style.display = 'flex'; document.getElementById('editorScreen').style.display = 'none'; }
-    
-    let notes = JSON.parse(localStorage.getItem('documentNotes_black')) || [];
-    let currentNoteId = localStorage.getItem('lastActiveNote_black') ? parseInt(localStorage.getItem('lastActiveNote_black')) : null;
-    let currentMonth = new Date();
-
-    function formatDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-    
-    function createNewNote(dateKey) {
-        const date = dateKey ? new Date(dateKey+'T00:00:00') : new Date();
-        const iso = date.toISOString();
-        const note = { id:Date.now(), title:formatDate(date), content:'<p><br></p>', createdAt:iso, updatedAt:iso };
-        notes.unshift(note);
-        saveNotes();
-        loadNotes();
-        selectNote(note.id);
-    }    
     
     function selectNote(id) {
         currentNoteId = id;
@@ -186,20 +180,11 @@
           return;
         };
         document.getElementById('noteTitle').value = note.title;
-        if(isEditorInitialized) {
-            $('#editor').summernote('code', note.content);
-        }
+        $('#editor').summernote('code', note.content);
+        
         highlightActive();
         if (window.innerWidth <= 768 && document.querySelector('.sidebar').classList.contains('visible')) {
           toggleSidebar();
-        }
-    }    
-    
-    function highlightActive() {
-        document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-        if (currentNoteId) {
-            const activeEl = document.querySelector(`.menu-item[data-note-id="${currentNoteId}"]`);
-            if (activeEl) activeEl.classList.add('active');
         }
     }    
     
@@ -220,151 +205,76 @@
         }
     }
     
-    function saveNotes() { localStorage.setItem('documentNotes_black', JSON.stringify(notes)); }    
-    
-    function loadNotes() {
-        const list = document.getElementById('notesList');
-        list.innerHTML = '';
-        notes.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-        notes.forEach(n => {
-            const d = document.createElement('div');
-            d.className = 'menu-item';
-            d.dataset.noteId = n.id;
-            const titleSpan = document.createElement('span');
-            titleSpan.textContent = n.title;
-            d.appendChild(titleSpan);
-            const deleteBtn = document.createElement('button');
-            deleteBtn.innerHTML = '&times;';
-            deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNote(n.id); };
-            d.appendChild(deleteBtn);
-            d.onclick = () => selectNote(n.id);
-            list.appendChild(d);
-        });
-        highlightActive();
-    }
-    
-    function deleteNote(id) {
-        if(!confirm('삭제하시겠습니까?')) return;
-        notes = notes.filter(x => x.id !== id);
-        saveNotes();
-        
-        if (currentNoteId === id) {
-            currentNoteId = null;
-            localStorage.removeItem('lastActiveNote_black');
-            document.getElementById('noteTitle').value = '';
-            if(isEditorInitialized) $('#editor').summernote('reset');
-        }
-        
-        loadNotes();
-        
-        if(notes.length > 0 && !currentNoteId) {
-            selectNote(notes[0].id);
-        } else if (notes.length === 0) {
-            createNewNote();
-        }
-        
-        if (document.getElementById('calendarView').style.display === 'block') {
-            renderCalendar();
-        }
-    }
-    
-    function exportToPDF() {
-        if (!currentNoteId) return alert('노트를 선택하세요.');
-        const note = notes.find(x => x.id === currentNoteId);
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = note.content;
-        const textContent = tempDiv.innerText || " ";
-
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        
-        doc.addFileToVFS('NanumGothic.ttf', nanumGothic);
-        doc.addFont('NanumGothic.ttf', 'NanumGothic', 'normal');
-        doc.setFont('NanumGothic');
-        
-        doc.setFontSize(16);
-        doc.text(note.title, 20, 20);
-        
-        doc.setFontSize(12);
-        const lines = doc.splitTextToSize(textContent, 170);
-        let y = 30;
-        lines.forEach(line => {
-            if (y > 280) {
-                doc.addPage();
-                y = 20;
-            }
-            doc.text(line, 20, y);
-            y += 7;
-        });
-
-        doc.save(`${note.title}.pdf`);
-    }
-
-    function renderCalendar() {
+    function renderCalendar() { 
         const calendarGrid = document.getElementById('calendarGrid');
-        if (!calendarGrid) return;
+        if (!calendarGrid) return; // defensive check
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
+        
         document.getElementById('calendarMonth').textContent = `${year}년 ${month + 1}월`;
         calendarGrid.innerHTML = '';
+        
         ['일', '월', '화', '수', '목', '금', '토'].forEach(day => {
             const header = document.createElement('div');
             header.className = 'calendar-day-header';
             header.textContent = day;
             calendarGrid.appendChild(header);
         });
-        const firstDay = new Date(year, month, 1).getDay();
-        const lastDate = new Date(year, month + 1, 0).getDate();
-        const prevLastDate = new Date(year, month, 0).getDate();
-        for (let i = firstDay; i > 0; i--) {
-            appendDay(prevLastDate - i + 1, true, null);
-        }
-        for (let i = 1; i <= lastDate; i++) {
-            appendDay(i, false, new Date(year, month, i));
-        }
-        const remainingCells = 42 - (firstDay + lastDate);
-        for (let i = 1; i <= remainingCells; i++) {
-            appendDay(i, true, null);
+
+        const firstDate = new Date(year, month, 1);
+        const startDate = new Date(firstDate);
+        startDate.setDate(startDate.getDate() - firstDate.getDay());
+
+        for (let i = 0; i < 42; i++) {
+            const cellDate = new Date(startDate);
+            cellDate.setDate(startDate.getDate() + i);
+            appendDay(cellDate, cellDate.getMonth() !== month);
         }
     }
 
-    function appendDay(date, isOtherMonth, fullDate) {
+    function appendDay(date, isOtherMonth) {
         const dayCell = document.createElement('div');
         dayCell.className = 'calendar-day';
-        if (isOtherMonth) dayCell.classList.add('other-month');
-        
+        if (isOtherMonth) {
+            dayCell.classList.add('other-month');
+        }
+
         const dayNumber = document.createElement('div');
         dayNumber.className = 'calendar-day-number';
-        dayNumber.textContent = date;
+        dayNumber.textContent = date.getDate();
         dayCell.appendChild(dayNumber);
 
-        if (!isOtherMonth && fullDate) {
-            const dateString = fullDate.toISOString().split('T')[0];
-            const notesOnDate = notes.filter(n => n.updatedAt.startsWith(dateString) && n.content.replace(/<[^>]*>/g, '').trim().length > 0);
+        if (!isOtherMonth) {
+            const dateString = formatDate(date);
+            const notesOnDate = notes.filter(n => formatDate(new Date(n.updatedAt)) === dateString && n.content.replace(/<[^>]*>/g, '').trim().length > 0);
+            
             if (notesOnDate.length > 0) {
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'calendar-day-content';
                 contentDiv.textContent = `${notesOnDate.length}개`;
                 dayCell.appendChild(contentDiv);
             }
+
             const today = new Date();
-            if (fullDate.toDateString() === today.toDateString()) {
+            if (date.toDateString() === today.toDateString()) {
                 dayCell.classList.add('today');
             }
             dayCell.onclick = () => onDateClick(dateString);
         }
         document.getElementById('calendarGrid').appendChild(dayCell);
     }
-
+    
     function changeMonth(dir) {
-        if (dir === 0) { currentMonth = new Date(); } 
-        else { currentMonth.setMonth(currentMonth.getMonth() + dir, 1); }
+        if (dir === 0) {
+            currentMonth = new Date();
+        } else {
+            currentMonth.setMonth(currentMonth.getMonth() + dir, 1);
+        }
         renderCalendar();
     }
 
     function onDateClick(dateKey) {
-        const existingNote = notes.find(n => n.updatedAt.startsWith(dateKey));
+        const existingNote = notes.find(n => formatDate(new Date(n.updatedAt)) === dateKey);
         if (existingNote) {
             selectNote(existingNote.id);
         } else {
@@ -382,6 +292,14 @@
             renderCalendar();
         }
     }
+    
+    // --- Other JS functions (no changes) ---
+    function backToMain() { document.getElementById('mainScreen').style.display = 'flex'; document.getElementById('editorScreen').style.display = 'none'; }
+    function highlightActive() { document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active')); if (currentNoteId) { const activeEl = document.querySelector(`.menu-item[data-note-id="${currentNoteId}"]`); if (activeEl) activeEl.classList.add('active'); } }    
+    function saveNotes() { localStorage.setItem('documentNotes_black', JSON.stringify(notes)); }    
+    function loadNotes() { const list = document.getElementById('notesList'); list.innerHTML = ''; notes.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt)); notes.forEach(n => { const d = document.createElement('div'); d.className = 'menu-item'; d.dataset.noteId = n.id; const titleSpan = document.createElement('span'); titleSpan.textContent = n.title; d.appendChild(titleSpan); const deleteBtn = document.createElement('button'); deleteBtn.innerHTML = '&times;'; deleteBtn.onclick = (e) => { e.stopPropagation(); deleteNote(n.id); }; d.appendChild(deleteBtn); d.onclick = () => selectNote(n.id); list.appendChild(d); }); highlightActive(); }
+    function deleteNote(id) { if(!confirm('삭제하시겠습니까?')) return; notes = notes.filter(x => x.id !== id); saveNotes(); if (currentNoteId === id) { currentNoteId = null; localStorage.removeItem('lastActiveNote_black'); document.getElementById('noteTitle').value = ''; if(isEditorInitialized) $('#editor').summernote('reset'); } loadNotes(); if (notes.length > 0 && !currentNoteId) { selectNote(notes[0].id); } else if (notes.length === 0) { createNewNote(); } if (document.getElementById('calendarView').style.display === 'block') { renderCalendar(); } }
+    function exportToPDF() { if (!currentNoteId) return alert('노트를 선택하세요.'); const note = notes.find(x => x.id === currentNoteId); const tempDiv = document.createElement('div'); tempDiv.innerHTML = note.content; const textContent = tempDiv.innerText || " "; const { jsPDF } = window.jspdf; const doc = new jsPDF(); doc.addFileToVFS('NanumGothic.ttf', nanumGothic); doc.addFont('NanumGothic.ttf', 'NanumGothic', 'normal'); doc.setFont('NanumGothic'); doc.setFontSize(16); doc.text(note.title, 20, 20); doc.setFontSize(12); const lines = doc.splitTextToSize(textContent, 170); let y = 30; lines.forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 20, y); y += 7; }); doc.save(`${note.title}.pdf`); }
   </script>
 </body>
 </html>
